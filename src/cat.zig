@@ -1,5 +1,6 @@
 const std = @import("std");
 
+
 pub fn getFile(io: std.Io, path: [:0]const u8) std.Io.File.OpenError!std.Io.File {
     const file = std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_only, .allow_directory = false }) catch | err | switch (err) {
         error.FileNotFound => return error.FileNotFound, // TODO: Makes no sense atm, but just as a reminder in case we extend this in the future
@@ -8,16 +9,14 @@ pub fn getFile(io: std.Io, path: [:0]const u8) std.Io.File.OpenError!std.Io.File
     return file;
 }
 
-pub fn copyFileToWriter(io: std.Io, path: [:0]const u8) !void {
-    const file = try getFile(io, path);
-    defer file.close(io);
+pub fn copyFileToWriter(io: std.Io, file: std.Io.File, writer_interface: *std.Io.Writer) !void {
+    var reader = file.reader(io, &.{}); // No read-ahead buffer.
+    const reader_interface = &reader.interface;
 
-    var reader = file.reader(io, &.{}); // []u8
-    var reader_interface = &reader.interface;
+    try copyReaderToWriter(reader_interface, writer_interface);
+}
 
-    var stdout_file_writer = std.Io.File.Writer.init(.stdout(), io, &.{});
-    const stdout_writer = &stdout_file_writer.interface; 
-
+pub fn copyReaderToWriter(reader_interface: *std.Io.Reader, writer_interface: *std.Io.Writer) !void {
     var chunk: [4096]u8 = undefined;
 
     while (true) {
@@ -25,8 +24,6 @@ pub fn copyFileToWriter(io: std.Io, path: [:0]const u8) !void {
 
         if (bytes_read == 0) break;
 
-        try stdout_writer.writeAll(chunk[0..bytes_read]);
+        try writer_interface.writeAll(chunk[0..bytes_read]);
     }
-    // try stdout_writer.flush();
-    // Completely useless since we are working on a zero bytes writer.
 }
